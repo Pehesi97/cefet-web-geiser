@@ -1,33 +1,52 @@
-var express = require('express'),
+(function() {
+    var fs = require('fs');
+    var _ = require('underscore');
+    var express = require('express'),
+
     app = express();
 
-// carregar "banco de dados" (data/jogadores.json e data/jogosPorJogador.json)
-// você pode colocar o conteúdo dos arquivos json no objeto "db" logo abaixo
-// dica: 3-4 linhas de código (você deve usar o módulo de filesystem (fs))
-var db = {
-};
+    var db = {
+        jogadores: JSON.parse(fs.readFileSync('data/jogadores.json').toString()),
+        jogosPorJogador: JSON.parse(fs.readFileSync('data/jogosPorJogador.json').toString())
+    };
 
+    app.set('view engine', 'hbs');
 
-// configurar qual templating engine usar. Sugestão: hbs (handlebars)
-//app.set('view engine', '???');
+    app.get('/', function(req, res) {
+        res.render('index', db.jogadores);
+    })
 
+    app.get('/jogador/:id', function(req, res) {
+     	var usuarios = _.find(db.jogadores.players, function(el) {
+    		return el.steamid === req.params.id;
+    	});
 
-// EXERCÍCIO 2
-// definir rota para página inicial --> renderizar a view index, usando os
-// dados do banco de dados "data/jogadores.json" com a lista de jogadores
-// dica: o handler desta função é bem simples - basta passar para o template
-//       os dados do arquivo data/jogadores.json
+    	var jogos = db.jogosPorJogador[req.params.id];
+    	jogos.dinheiroperdido = _.where(jogos.games, {
+    		playtime_forever: 0
+    	}).length;
 
-// EXERCÍCIO 3
-// definir rota para página de detalhes de um jogador --> renderizar a view
-// jogador, usando os dados do banco de dados "data/jogadores.json" e
-// "data/jogosPorJogador.json", assim como alguns campos calculados
-// dica: o handler desta função pode chegar a ter umas 15 linhas de código
+    	jogos.games = _.sortBy(jogos.games, function(el) {
+    		return -el.playtime_forever;
+    	});
 
+    	jogos.games = _.head(jogos.games, 5);
 
-// EXERCÍCIO 1
-// configurar para servir os arquivos estáticos da pasta "client"
-// dica: 1 linha de código
+    	jogos.games = _.map(jogos.games, function(el) {
+    		el.playtime_forever_h = Math.round(el.playtime_forever / 60);
+    		return el;
+    	});
 
-// abrir servidor na porta 3000
-// dica: 1-3 linhas de código
+    	res.render('jogador', {
+    	    perfil: usuarios,
+    	    gameInfo: jogos,
+    	    favorite: jogos.games[0]
+    	});
+    });
+
+    app.use(express.static(__dirname + '/../client'));
+
+    var server = app.listen(3000, function() {        
+        console.log('Servidor rodando em http://localhost:%s', server.address().port);
+    })
+})();
